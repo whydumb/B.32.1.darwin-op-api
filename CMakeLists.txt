@@ -12,22 +12,22 @@ message(STATUS "VCPKG_TARGET_TRIPLET: ${VCPKG_TARGET_TRIPLET}")
 # 수동으로 vcpkg 경로 설정
 set(CMAKE_PREFIX_PATH "C:/Users/VICTUS/Desktop/vcpkg/installed/x64-windows" ${CMAKE_PREFIX_PATH})
 
-# MongoDB 드라이버 찾기
-find_package(bsoncxx CONFIG REQUIRED)
+# MongoDB 드라이버 찾기 (mongo-cxx-driver용)
 find_package(mongocxx CONFIG REQUIRED)
+find_package(bsoncxx CONFIG REQUIRED)
 
 # 기존 실행파일 (읽기 전용)
 add_executable(movement_tracker movement_tracker.cpp)
 target_link_libraries(movement_tracker PRIVATE 
-    $<IF:$<TARGET_EXISTS:mongo::bsoncxx_static>,mongo::bsoncxx_static,mongo::bsoncxx_shared>
-    $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>
+    mongo::mongocxx_shared
+    mongo::bsoncxx_shared
 )
 
 # 새로운 실행파일 (Darwin-OP 동기화)
 add_executable(darwin_sync enhanced_movement_tracker.cpp)
 target_link_libraries(darwin_sync PRIVATE 
-    $<IF:$<TARGET_EXISTS:mongo::bsoncxx_static>,mongo::bsoncxx_static,mongo::bsoncxx_shared>
-    $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>
+    mongo::mongocxx_shared
+    mongo::bsoncxx_shared
 )
 
 # Windows에서 HTTP 요청을 위한 WinINet 라이브러리 추가
