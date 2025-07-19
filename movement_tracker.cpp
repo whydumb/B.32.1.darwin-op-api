@@ -27,13 +27,12 @@ private:
     int robot_port;
     std::string last_action;
     
-    // MongoDB 액션 -> Darwin-OP 명령 매핑 (stop/start 제거)
+    // MongoDB 액션 -> Darwin-OP 명령 매핑
     std::map<std::string, std::string> action_mapping = {
         {"forward", "move_forward"},
         {"backward", "move_backward"},
         {"left", "turn_left"},
-        {"right", "turn_right"},
-        {"idle", "walk_stop"}
+        {"right", "turn_right"}
     };
 
 public:
@@ -146,74 +145,6 @@ public:
         std::cout << "[MONGO] 대상: movement_tracker.movementracker" << std::endl;
     }
     
-    void print_all_documents() {
-        std::cout << "\n=== 전체 MongoDB 문서 (기존 코드와 동일) ===\n";
-        // 기존 movement_tracker.cpp와 정확히 동일한 코드
-        auto cursor = collection.find({});
-        int count = 0;
-        for (auto&& doc : cursor) {
-            std::cout << "문서 " << ++count << ": " << bsoncxx::to_json(doc) << std::endl;
-        }
-        std::cout << "총 " << count << "개 문서\n" << std::endl;
-    }
-    
-    void print_tracking_documents_only() {
-        std::cout << "\n=== 추적 중인 문서만 출력 ===\n";
-        try {
-            auto filter = document{} << "status" << "tracking" << finalize;
-            auto cursor = collection.find(filter.view());
-            int count = 0;
-            
-            for (auto&& doc : cursor) {
-                count++;
-                auto view = doc.view();
-                
-                std::cout << "--- 추적 문서 " << count << " ---" << std::endl;
-                std::cout << "전체 JSON: " << bsoncxx::to_json(view) << std::endl;
-                
-                // 핵심 필드들 추출해서 보기 쉽게 출력
-                std::cout << "📋 핵심 정보:" << std::endl;
-                
-                if (view["current_action"]) {
-                    std::cout << "  현재 액션: " << view["current_action"].get_utf8().value.to_string() << std::endl;
-                }
-                
-                if (view["total_actions"]) {
-                    std::cout << "  총 액션 수: " << view["total_actions"].get_int32().value << std::endl;
-                }
-                
-                if (view["current_yaw"]) {
-                    if (view["current_yaw"].type() == bsoncxx::type::k_double) {
-                        std::cout << "  현재 방향(Yaw): " << view["current_yaw"].get_double().value << std::endl;
-                    } else if (view["current_yaw"].type() == bsoncxx::type::k_int32) {
-                        std::cout << "  현재 방향(Yaw): " << view["current_yaw"].get_int32().value << std::endl;
-                    }
-                }
-                
-                if (view["player_id"]) {
-                    std::cout << "  플레이어 ID: " << view["player_id"].get_utf8().value.to_string() << std::endl;
-                }
-                
-                if (view["replay_name"]) {
-                    std::cout << "  리플레이 이름: " << view["replay_name"].get_utf8().value.to_string() << std::endl;
-                }
-                
-                std::cout << std::endl;
-            }
-            
-            if (count == 0) {
-                std::cout << "⚠️ status='tracking'인 문서가 없습니다." << std::endl;
-                std::cout << "💡 MongoDB에서 tracking 상태인 데이터를 생성해주세요." << std::endl;
-            } else {
-                std::cout << "총 " << count << "개의 추적 중인 문서" << std::endl;
-            }
-            
-        } catch (const std::exception& e) {
-            std::cout << "[MONGO] ❌ 추적 문서 조회 실패: " << e.what() << std::endl;
-        }
-        std::cout << std::endl;
-    }
-    
     bsoncxx::stdx::optional<bsoncxx::document::value> get_current_tracking() {
         try {
             // 가장 최근 데이터
@@ -232,47 +163,6 @@ public:
         }
         
         return {};
-    }
-    
-    // 실시간 모니터링을 위한 함수
-    void monitor_changes(int seconds = 10) {
-        std::cout << "\n🔍 " << seconds << "초간 MongoDB 변화 모니터링..." << std::endl;
-        std::cout << "status='tracking'인 문서의 total_actions 변화를 감지합니다.\n" << std::endl;
-        
-        int last_total_actions = -1;
-        std::string last_action = "";
-        
-        for (int i = 0; i < seconds; i++) {
-            auto data = get_current_tracking();
-            
-            if (data) {
-                auto view = data->view();
-                
-                int current_total = view["total_actions"] ? 
-                    view["total_actions"].get_int32().value : 0;
-                
-                std::string current_action = view["current_action"] ? 
-                    view["current_action"].get_utf8().value.to_string() : "unknown";
-                
-                if (current_total != last_total_actions || current_action != last_action) {
-                    std::cout << "[" << i+1 << "초] 📊 변화 감지!" << std::endl;
-                    std::cout << "  액션: " << last_action << " → " << current_action << std::endl;
-                    std::cout << "  총 액션: " << last_total_actions << " → " << current_total << std::endl;
-                    
-                    last_total_actions = current_total;
-                    last_action = current_action;
-                } else {
-                    std::cout << "[" << i+1 << "초] 변화 없음 (액션: " << current_action 
-                              << ", 총: " << current_total << ")" << std::endl;
-                }
-            } else {
-                std::cout << "[" << i+1 << "초] tracking 데이터 없음" << std::endl;
-            }
-            
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-        
-        std::cout << "\n✅ 모니터링 완료!" << std::endl;
     }
 };
 
@@ -349,31 +239,6 @@ public:
         }
         
         std::cout << "\n🛑 동기화 종료!" << std::endl;
-    }
-    
-    void stop() {
-        running = false;
-    }
-    
-    void print_status() {
-        auto data = tracker.get_current_tracking();
-        
-        std::cout << "\n📊 현재 상태:" << std::endl;
-        std::cout << "  동기화 횟수: " << sync_count << std::endl;
-        std::cout << "  마지막 액션: " << (robot.get_last_action().empty() ? "없음" : robot.get_last_action()) << std::endl;
-        std::cout << "  처리된 총 액션: " << last_total_actions << std::endl;
-        
-        if (data) {
-            auto doc_view = data->view();
-            std::string current_action = doc_view["current_action"] ? 
-                doc_view["current_action"].get_utf8().value.to_string() : "unknown";
-            int total_actions = doc_view["total_actions"] ? 
-                doc_view["total_actions"].get_int32().value : 0;
-            
-            std::cout << "  현재 MongoDB 액션: " << current_action << std::endl;
-            std::cout << "  MongoDB 총 액션: " << total_actions << std::endl;
-        }
-        std::cout << std::endl;
     }
 };
 
