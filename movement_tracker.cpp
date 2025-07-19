@@ -7,7 +7,7 @@
 #include <bsoncxx/builder/stream/document.hpp>
 #include <mongocxx/client.hpp>
 #include <mongocxx/instance.hpp>
-#include <mongocxx/stdx.hpp>
+// #include <mongocxx/stdx.hpp>  // 제거: 호환성 문제
 
 // Windows에서 HTTP 요청을 위한 헤더 (libcurl 대신 간단한 방법)
 #ifdef _WIN32
@@ -145,7 +145,7 @@ public:
         std::cout << "[MONGO] 대상: movement_tracker.movementracker" << std::endl;
     }
     
-    bsoncxx::stdx::optional<bsoncxx::document::value> get_current_tracking() {
+    std::optional<bsoncxx::document::value> get_current_tracking() {
         try {
             // 가장 최근 데이터
             auto opts = mongocxx::options::find{};
