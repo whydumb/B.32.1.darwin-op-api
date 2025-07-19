@@ -25,5 +25,5 @@ target_link_libraries(movement_tracker PRIVATE
 
 # Windows에서 HTTP 요청을 위한 WinINet 라이브러리 추가
 if(WIN32)
-    target_link_libraries(darwin_sync PRIVATE wininet)
+    target_link_libraries(movement_tracker PRIVATE wininet)
 endif()
