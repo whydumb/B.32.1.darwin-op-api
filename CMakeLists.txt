@@ -23,13 +23,6 @@ target_link_libraries(movement_tracker PRIVATE
     mongo::bsoncxx_shared
 )
 
-# 새로운 실행파일 (Darwin-OP 동기화)
-add_executable(darwin_sync enhanced_movement_tracker.cpp)
-target_link_libraries(darwin_sync PRIVATE 
-    mongo::mongocxx_shared
-    mongo::bsoncxx_shared
-)
-
 # Windows에서 HTTP 요청을 위한 WinINet 라이브러리 추가
 if(WIN32)
     target_link_libraries(darwin_sync PRIVATE wininet)
