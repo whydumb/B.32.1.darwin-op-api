@@ -27,19 +27,17 @@ private:
     int robot_port;
     std::string last_action;
     
-    // MongoDB 액션 -> Darwin-OP 명령 매핑
+    // MongoDB 액션 -> Darwin-OP 명령 매핑 (stop/start 제거)
     std::map<std::string, std::string> action_mapping = {
         {"forward", "move_forward"},
         {"backward", "move_backward"},
         {"left", "turn_left"},
         {"right", "turn_right"},
-        {"idle", "walk_stop"},
-        {"stop", "walk_stop"},
-        {"start", "walk_start"}
+        {"idle", "walk_stop"}
     };
 
 public:
-    DarwinOpController(const std::string& ip = "192.168.1.100", int port = 8080) 
+    DarwinOpController(const std::string& ip, int port = 8080) 
         : robot_ip(ip), robot_port(port) {
         std::cout << "[ROBOT] Darwin-OP 제어 대상: http://" << robot_ip << ":" << robot_port << std::endl;
     }
@@ -218,20 +216,19 @@ public:
     
     bsoncxx::stdx::optional<bsoncxx::document::value> get_current_tracking() {
         try {
-            // status가 "tracking"인 가장 최근 데이터
-            auto filter = document{} << "status" << "tracking" << finalize;
+            // 가장 최근 데이터
             auto opts = mongocxx::options::find{};
             opts.sort(document{} << "_id" << -1 << finalize);
             opts.limit(1);
             
-            auto cursor = collection.find(filter.view(), opts);
+            auto cursor = collection.find({}, opts);
             auto it = cursor.begin();
             
             if (it != cursor.end()) {
                 return bsoncxx::document::value{*it};
             }
         } catch (const std::exception& e) {
-            std::cout << "[MONGO] ❌ 현재 추적 데이터 조회 실패: " << e.what() << std::endl;
+            std::cout << "[MONGO] ❌ 현재 데이터 조회 실패: " << e.what() << std::endl;
         }
         
         return {};
@@ -288,7 +285,7 @@ private:
     int sync_count;
 
 public:
-    SimpleSync(const std::string& robot_ip = "192.168.1.100") 
+    SimpleSync(const std::string& robot_ip) 
         : robot(robot_ip), running(false), last_total_actions(0), sync_count(0) {
     }
     
@@ -306,7 +303,7 @@ public:
                 if (!data) {
                     no_data_count++;
                     if (no_data_count % 10 == 1) {  // 10초마다 메시지
-                        std::cout << "[SYNC] 추적 데이터 대기 중... (status='tracking'인 데이터 필요)" << std::endl;
+                        std::cout << "[SYNC] 데이터 대기 중..." << std::endl;
                     }
                     std::this_thread::sleep_for(std::chrono::seconds(1));
                     continue;
@@ -387,16 +384,17 @@ int main() {
     // MongoDB 인스턴스 초기화 (기존 코드와 동일)
     mongocxx::instance const inst{};
     
-    std::string robot_ip = "192.168.1.100";  // Darwin-OP IP (필요시 수정)
+    // 로봇 IP 입력받기
+    std::string robot_ip;
+    std::cout << "\n🤖 Darwin-OP 로봇 IP 주소를 입력하세요 (예: 192.168.1.100): ";
+    std::cin >> robot_ip;
+    std::cout << "설정된 로봇 IP: " << robot_ip << std::endl;
     
     try {
         MongoDBTracker tracker;
         
         std::cout << "\n🎮 명령어:" << std::endl;
-        std::cout << "  1 - MongoDB 전체 문서 출력 (기존 기능)" << std::endl;
-        std::cout << "  2 - 현재 추적 데이터 확인" << std::endl;
         std::cout << "  3 - Darwin-OP 동기화 시작" << std::endl;
-        std::cout << "  4 - 테스트 명령 전송" << std::endl;
         std::cout << "  q - 종료" << std::endl;
         
         SimpleSync sync_manager(robot_ip);
@@ -409,28 +407,8 @@ int main() {
             if (choice == 'q' || choice == 'Q') {
                 break;
             }
-            else if (choice == '1') {
-                tracker.print_all_documents();
-            }
-            else if (choice == '2') {
-                auto data = tracker.get_current_tracking();
-                if (data) {
-                    std::cout << "\n현재 추적 데이터:\n" << bsoncxx::to_json(data->view()) << std::endl;
-                } else {
-                    std::cout << "\n추적 중인 데이터가 없습니다. (status='tracking' 필요)" << std::endl;
-                }
-            }
             else if (choice == '3') {
                 sync_manager.run_sync_loop();  // 이 함수는 무한 루프 (Ctrl+C로 중지)
-            }
-            else if (choice == '4') {
-                std::string test_action;
-                std::cout << "테스트 액션 입력 (forward/backward/left/right/stop): ";
-                std::cin >> test_action;
-                
-                DarwinOpController test_robot(robot_ip);
-                bool success = test_robot.execute_action(test_action);
-                std::cout << "테스트 결과: " << (success ? "성공" : "실패") << std::endl;
             }
             else {
                 std::cout << "알 수 없는 명령어입니다." << std::endl;
